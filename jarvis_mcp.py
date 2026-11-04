@@ -1,4 +1,5 @@
-"""A real MCP server built with standalone FastMCP and exposed over stdio.
+"""Sahinul Haque · Build Your Own Jarvis: the MCP.
+A real MCP server built with standalone FastMCP and exposed over stdio.
 
 This is genuine MCP: run it with `python jarvis_mcp.py` and it speaks the Model
 Context Protocol on stdin/stdout. The agent connects with the FastMCP Client and
@@ -19,7 +20,8 @@ mcp = FastMCP("jarvis")
 @mcp.tool
 def list_inbox() -> str:
     """List the unread emails in the user's inbox (id, sender, subject)."""
-    lines = [f"{e['id']}: from {e['from']} — {e['subject']}" for e in store.inbox()]
+    lines = [
+        f"{e['id']}: from {e['from']} — {e['subject']}" for e in store.inbox()]
     return "\n".join(lines) if lines else "Inbox is empty."
 
 

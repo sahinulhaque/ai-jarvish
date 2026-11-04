@@ -1,4 +1,4 @@
-"""CLI for Build Your Own Jarvis.
+"""Sahinul Haque · CLI for Build Your Own Jarvis.
 
     python run.py --demo          # scripted task, then auto-approve the drafts (full flow)
     python run.py "check my inbox and draft a reply to Priya" -v
