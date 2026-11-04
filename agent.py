@@ -77,7 +77,7 @@ def _python_type(schema: dict[str, Any]) -> type[Any]:
         "boolean": bool,
         "array": list,
         "object": dict,
-    }.get(key=schema_type, default=Any)
+    }.get(schema_type, Any)
 
 
 def _tool_result_text(result: Any) -> str:

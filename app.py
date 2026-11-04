@@ -8,6 +8,8 @@ DRAFTS actions; the visitor approves them here. The agent structurally cannot se
 """
 import html
 import os
+import re
+import traceback
 
 import streamlit as st
 
@@ -91,6 +93,15 @@ header[data-testid="stHeader"]{background:transparent}
 st.markdown(CSS, unsafe_allow_html=True)
 
 
+def _safe_error(exc: Exception) -> str:
+    """Error type and a short message, with any API key redacted."""
+    text = f"{type(exc).__name__}: {str(exc)[:400]}"
+    key = os.getenv("GROQ_API_KEY")
+    if key:
+        text = text.replace(key, "***")
+    return re.sub(r"gsk_[A-Za-z0-9]+", "gsk_***", text)
+
+
 def card(icon, title, body):
     return f'<div class="card"><div style="font-size:24px">{icon}</div><h3>{title}</h3><p>{body}</p></div>'
 
@@ -134,9 +145,11 @@ def _use(prompt: str):
 
 cols = st.columns(len(EXAMPLES))
 for col, (label, prompt) in zip(cols, EXAMPLES.items()):
-    col.button(label, on_click=_use, args=(prompt,), use_container_width=True, key=f"ex_{label}")
+    col.button(label, on_click=_use, args=(prompt,),
+               use_container_width=True, key=f"ex_{label}")
 
-st.text_area("Ask Jarvis", key="task", height=100, max_chars=guardrails.MAX_CHARS)
+st.text_area("Ask Jarvis", key="task", height=100,
+             max_chars=guardrails.MAX_CHARS)
 run = st.button("▶ Run Jarvis", type="primary")
 
 if run:
@@ -146,16 +159,22 @@ if run:
     if not ok:
         st.warning(msg)
     elif not os.getenv("GROQ_API_KEY"):
-        st.error("The demo isn’t configured yet: GROQ_API_KEY is missing on the server.")
+        st.error(
+            "The demo isn’t configured yet: GROQ_API_KEY is missing on the server.")
     else:
         steps: list = []
         try:
             with st.spinner("Jarvis is working: reading your inbox and drafting…"):
                 reply = run_jarvis(st.session_state.task, steps=steps)
-            st.session_state.result = {"reply": guardrails.check_output(reply), "steps": steps}
-        except Exception:
+            st.session_state.result = {
+                "reply": guardrails.check_output(reply), "steps": steps}
+        except Exception as exc:
+            traceback.print_exc()  # full detail goes to the server log (Manage app, Logs)
             st.session_state.pop("result", None)
-            st.error("Jarvis hit a problem reaching the model. Please try again in a moment.")
+            st.error(
+                "Jarvis hit a problem reaching the model. Please try again in a moment.")
+            # with st.expander("Technical details"):
+            #     st.code(_safe_error(exc))
 
 # ---- response (animated, appears below the tool) -------------------------------
 res = st.session_state.get("result")
@@ -163,27 +182,32 @@ if res:
     if res["steps"]:
         rows = ""
         for i, s in enumerate(res["steps"], 1):
-            arg = html.escape(", ".join(f"{k}={str(v)[:60]}" for k, v in (s["args"] or {}).items()))
+            arg = html.escape(
+                ", ".join(f"{k}={str(v)[:60]}" for k, v in (s["args"] or {}).items()))
             rows += (f'<div class="tr" style="--i:{i}"><span class="n">{i:02d}</span><div>'
                      f'<b>{ICONS.get(s["tool"], "🔧")} {LABELS.get(s["tool"], html.escape(s["tool"]))}</b>'
                      f'<small>{html.escape(s["tool"])}({arg})</small></div></div>')
         st.markdown('<div class="eyebrow" style="margin-top:22px">What Jarvis did</div><div class="bar"><i></i></div>'
                     + rows, unsafe_allow_html=True)
-    st.markdown('<div class="eyebrow" style="margin-top:22px">Jarvis says</div>', unsafe_allow_html=True)
+    st.markdown('<div class="eyebrow" style="margin-top:22px">Jarvis says</div>',
+                unsafe_allow_html=True)
     with st.container(border=True):
         st.markdown(res["reply"])
 
 pend = store.pending()
 if pend:
-    st.markdown('<div class="eyebrow">⏳ Awaiting your approval</div>', unsafe_allow_html=True)
-    st.caption("Nothing has been sent or scheduled. Approve to do it; reject to discard.")
+    st.markdown('<div class="eyebrow">⏳ Awaiting your approval</div>',
+                unsafe_allow_html=True)
+    st.caption(
+        "Nothing has been sent or scheduled. Approve to do it; reject to discard.")
     for p in pend:
         with st.container(border=True):
             if p["kind"] == "email":
                 st.markdown(f"✉️ **Email to {p['to']}** — {p['subject']}")
                 st.text(p["body"])
             else:
-                st.markdown(f"📅 **Event** — {p['title']} on {p['day']} {p['time']}")
+                st.markdown(
+                    f"📅 **Event** — {p['title']} on {p['day']} {p['time']}")
             c1, c2, _ = st.columns([1, 1, 3])
             if c1.button("✅ Approve", key=f"a_{p['id']}"):
                 store.approve(p["id"])
@@ -199,36 +223,52 @@ st.markdown(
     'Reads return data, writes only stage a draft, and a human approves.</p></div>'
     '<div class="grid">'
     + card("👁", "1 · Read", "<code>list_inbox</code>, <code>read_email</code>, <code>get_calendar</code> and <code>search_notes</code> return data directly.")
-    + card("🧠", "2 · Reason", "The agent decides which tools to call and drafts the response.")
-    + card("✋", "3 · Stage", "<code>draft_reply</code> and <code>propose_event</code> only add items to a pending queue.")
-    + card("✅", "4 · Approve", "You approve or reject. Only then does anything reach the outbox or calendar.")
+    + card("🧠", "2 · Reason",
+           "The agent decides which tools to call and drafts the response.")
+    + card("✋", "3 · Stage",
+           "<code>draft_reply</code> and <code>propose_event</code> only add items to a pending queue.")
+    + card("✅", "4 · Approve",
+           "You approve or reject. Only then does anything reach the outbox or calendar.")
     + '</div>', unsafe_allow_html=True)
 
 st.markdown(
     '<div id="safety" class="sec"><div class="eyebrow">Guardrails</div><h2>The prompt isn’t the safety boundary. The code is.</h2>'
     '<p class="sub">Jarvis has no send, schedule, delete or payment tool, so it cannot act unattended. '
     'This public demo adds more layers on top.</p></div><div class="grid">'
-    + card("🧱", "No dangerous tools", "There is no send or schedule tool to talk the model into using.")
-    + card("🏷", "Untrusted data labelling", "Email and note content is wrapped and marked as data, never instructions.")
-    + card("🔍", "Input screening", f"Instructions over {guardrails.MAX_CHARS} characters, override attempts and mail-to-outsider requests are blocked before the model sees them.")
-    + card("⏱", "Usage limits", f"A {guardrails.COOLDOWN_S}s cooldown, {guardrails.SESSION_CAP} runs per session and a daily cap protect the API key.")
-    + card("📝", "Honest output check", "If a reply claims something was sent, it is corrected with a note.")
-    + card("🎣", "Phishing test built in", "The sandbox contains a malicious email. Try the “Phishing test” button above.")
+    + card("🧱", "No dangerous tools",
+           "There is no send or schedule tool to talk the model into using.")
+    + card("🏷", "Untrusted data labelling",
+           "Email and note content is wrapped and marked as data, never instructions.")
+    + card("🔍", "Input screening",
+           f"Instructions over {guardrails.MAX_CHARS} characters, override attempts and mail-to-outsider requests are blocked before the model sees them.")
+    + card("⏱", "Usage limits",
+           f"A {guardrails.COOLDOWN_S}s cooldown, {guardrails.SESSION_CAP} runs per session and a daily cap protect the API key.")
+    + card("📝", "Honest output check",
+           "If a reply claims something was sent, it is corrected with a note.")
+    + card("🎣", "Phishing test built in",
+           "The sandbox contains a malicious email. Try the “Phishing test” button above.")
     + '</div>', unsafe_allow_html=True)
 
 st.markdown(
     '<div id="services" class="sec"><div class="eyebrow">Freelance services</div><h2>What I can build for you</h2>'
     '<p class="sub">I’m Sahinul Haque, an AI &amp; Agentic AI developer and technical architect with 21 years of IT experience.</p></div>'
     '<div class="grid">'
-    + card("🤖", "Agentic AI systems", "Tool-using agents with LangChain and LangGraph, built for real workflows.")
-    + card("🔌", "MCP servers &amp; integrations", "Custom MCP servers that connect agents to your inbox, calendar, data and tools.")
-    + card("🛡", "Human-in-the-loop safety", "Approval flows, least-privilege tools and prompt-injection resistance.")
-    + card("⚙️", "Automation", "Turn repetitive tasks into reliable, supervised AI workflows.")
-    + card("🖥", "AI apps &amp; demos", "Streamlit interfaces and proofs of concept you can show stakeholders.")
-    + card("🏛", "Technical architecture", "Design and review of AI solutions, backed by 21 years in IT.")
+    + card("🤖", "Agentic AI systems",
+           "Tool-using agents with LangChain and LangGraph, built for real workflows.")
+    + card("🔌", "MCP servers &amp; integrations",
+           "Custom MCP servers that connect agents to your inbox, calendar, data and tools.")
+    + card("🛡", "Human-in-the-loop safety",
+           "Approval flows, least-privilege tools and prompt-injection resistance.")
+    + card("⚙️", "Automation",
+           "Turn repetitive tasks into reliable, supervised AI workflows.")
+    + card("🖥", "AI apps &amp; demos",
+           "Streamlit interfaces and proofs of concept you can show stakeholders.")
+    + card("🏛", "Technical architecture",
+           "Design and review of AI solutions, backed by 21 years in IT.")
     + '</div>', unsafe_allow_html=True)
 
-chips = ["FastMCP", "MCP (stdio)", "LangGraph", "LangChain", "Groq", "openai/gpt-oss-120b", "Pydantic", "Streamlit", "Python 3.12"]
+chips = ["FastMCP", "MCP (stdio)", "LangGraph", "LangChain", "Groq",
+         "openai/gpt-oss-120b", "Pydantic", "Streamlit", "Python 3.12"]
 st.markdown('<div class="sec"><div class="eyebrow">Under the hood</div><h2>Tech used in Jarvis</h2></div><div class="chips">'
             + "".join(f'<span class="chip">{c}</span>' for c in chips) + '</div>', unsafe_allow_html=True)
 
