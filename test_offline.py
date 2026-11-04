@@ -1,4 +1,5 @@
-"""Offline tests with no API key or LLM call.
+"""Sahinul Haque · Build Your Own Jarvis: the test.
+Offline tests with no API key or LLM call.
 
 Exercises the sandbox store and the draft→approve safety model (the deterministic
 core), then checks the standalone FastMCP server through in-memory and stdio Clients.
@@ -62,27 +63,33 @@ def main():
               for e in inbox))
 
     # drafting only STAGES — nothing sends
-    pid = store.add_pending("email", to="Priya", subject="Re: sync", body="Wed 2pm works.")
-    check("draft is staged in pending", any(p["id"] == pid for p in store.pending()))
+    pid = store.add_pending("email", to="Priya",
+                            subject="Re: sync", body="Wed 2pm works.")
+    check("draft is staged in pending", any(
+        p["id"] == pid for p in store.pending()))
     check("nothing is in the outbox yet", len(store.outbox()) == 0)
 
     # approval executes it
     msg = store.approve(pid)
     check("approve reports a send", "Sent email" in msg)
     check("email is now in the outbox", len(store.outbox()) == 1)
-    check("pending is cleared after approval", all(p["id"] != pid for p in store.pending()))
+    check("pending is cleared after approval", all(
+        p["id"] != pid for p in store.pending()))
 
     # events stage & approve onto the calendar
     before = len(store.calendar())
     ev = store.add_pending("event", title="Q3 sync", day="Wed", time="2:00 PM")
-    check("event stages without touching the calendar", len(store.calendar()) == before)
+    check("event stages without touching the calendar",
+          len(store.calendar()) == before)
     store.approve(ev)
-    check("approved event lands on the calendar", len(store.calendar()) == before + 1)
+    check("approved event lands on the calendar",
+          len(store.calendar()) == before + 1)
 
     # reject discards
     r = store.add_pending("email", to="x", subject="y", body="z")
     store.reject(r)
-    check("rejected draft is discarded", all(p["id"] != r for p in store.pending()))
+    check("rejected draft is discarded", all(
+        p["id"] != r for p in store.pending()))
 
     # notes save directly (low-risk)
     n0 = len(store.notes())

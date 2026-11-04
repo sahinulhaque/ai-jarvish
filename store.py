@@ -1,4 +1,4 @@
-"""The sandbox datastore for Jarvis.
+"""Sahinul Haque · Build Your Own Jarvis: The sandbox datastore for Jarvis.
 
 A local JSON file standing in for the user's real inbox / calendar / notes — so the
 capstone runs offline and safely (NO real Gmail, NO OAuth, and the agent can never
@@ -113,10 +113,12 @@ def approve(pid: str) -> str:
         return f"No pending action {pid}."
     s["pending"] = [p for p in s["pending"] if p["id"] != pid]
     if item["kind"] == "email":
-        s["outbox"].append({"to": item["to"], "subject": item["subject"], "body": item["body"]})
+        s["outbox"].append(
+            {"to": item["to"], "subject": item["subject"], "body": item["body"]})
         msg = f"✉️  Sent email to {item['to']}: '{item['subject']}'."
     elif item["kind"] == "event":
-        s["calendar"].append({"title": item["title"], "day": item["day"], "time": item["time"]})
+        s["calendar"].append(
+            {"title": item["title"], "day": item["day"], "time": item["time"]})
         msg = f"📅 Added '{item['title']}' to the calendar on {item['day']} {item['time']}."
     else:
         msg = "Approved."
